@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+
 class Environment:
     def __init__(self):
         self.memos_db = Path(os.getenv("MEMOS_DB", "/external-data/memos/memos.db"))

@@ -11,9 +11,9 @@ from .utils import encode_vector, embed_texts
 # ── Config ────────────────────────────────────────────────────────────────────
 
 
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
+
 
 def init_rag_db(rag: sqlite3.Connection, embed_dim: int):
     """Create tables if they don't exist. Uses a plain BLOB column for vectors
@@ -39,13 +39,16 @@ def init_rag_db(rag: sqlite3.Connection, embed_dim: int):
     """)
     rag.commit()
 
+
 # ── Watermark ─────────────────────────────────────────────────────────────────
+
 
 def get_watermark(rag: sqlite3.Connection, watermark_key: str) -> int:
     row = rag.execute(
         "SELECT value FROM meta WHERE key = ?", (watermark_key,)
     ).fetchone()
     return int(row[0]) if row else 0
+
 
 def save_watermark(rag: sqlite3.Connection, ts: int, watermark_key: str):
     rag.execute(
@@ -54,24 +57,42 @@ def save_watermark(rag: sqlite3.Connection, ts: int, watermark_key: str):
     )
     rag.commit()
 
+
 # ── Core indexing ─────────────────────────────────────────────────────────────
 
+
 def fetch_memos_since(memos: sqlite3.Connection, since_ts: int) -> list[dict]:
-    rows = memos.execute("""
+    rows = memos.execute(
+        """
         SELECT id, uid, created_ts, updated_ts, content
         FROM   memo
         WHERE  updated_ts > ?
           AND  row_status = 'NORMAL'
           AND  visibility != 'ARCHIVED'
         ORDER  BY updated_ts ASC
-    """, (since_ts,)).fetchall()
+    """,
+        (since_ts,),
+    ).fetchall()
 
     return [
-        {"id": r[0], "uid": r[1], "created_ts": r[2], "updated_ts": r[3], "content": r[4]}
+        {
+            "id": r[0],
+            "uid": r[1],
+            "created_ts": r[2],
+            "updated_ts": r[3],
+            "content": r[4],
+        }
         for r in rows
     ]
 
-def index_memos(memos_list: list[dict], rag: sqlite3.Connection, batch_size: int, ollama_url: str, embed_model: str):
+
+def index_memos(
+    memos_list: list[dict],
+    rag: sqlite3.Connection,
+    batch_size: int,
+    ollama_url: str,
+    embed_model: str,
+):
     """Embed and upsert a list of memo dicts."""
     if not memos_list:
         return
@@ -86,24 +107,32 @@ def index_memos(memos_list: list[dict], rag: sqlite3.Connection, batch_size: int
         log.info(f"  Embedding batch {batch_start}–{batch_start + len(batch) - 1}")
         embeddings = embed_texts(texts, ollama_url, embed_model)
 
-        rag.executemany("""
+        rag.executemany(
+            """
             INSERT OR REPLACE INTO memo_embeddings
                 (memo_id, uid, created_ts, updated_ts, content, embedding)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, [
-            (
-                m["id"], m["uid"], m["created_ts"], m["updated_ts"],
-                m["content"], encode_vector(emb),
-            )
-            for m, emb in zip(batch, embeddings)
-        ])
+        """,
+            [
+                (
+                    m["id"],
+                    m["uid"],
+                    m["created_ts"],
+                    m["updated_ts"],
+                    m["content"],
+                    encode_vector(emb),
+                )
+                for m, emb in zip(batch, embeddings)
+            ],
+        )
         rag.commit()
 
     log.info("Batch done.")
 
+
 def do_build():
-    MEMOS_DB   = environment.Environment().memos_db
-    RAG_DB     = environment.Environment().rag_db
+    MEMOS_DB = environment.Environment().memos_db
+    RAG_DB = environment.Environment().rag_db
     OLLAMA_URL = environment.Environment().ollama_url
     BATCH_SIZE = environment.Environment().batch_size
     WATERMARK_KEY = environment.Environment().watermark_key
@@ -111,15 +140,16 @@ def do_build():
     EMBED_MODEL = environment.Environment().embed_model
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--full", action="store_true",
-                        help="Force a full reindex (ignores watermark)")
+    parser.add_argument(
+        "--full", action="store_true", help="Force a full reindex (ignores watermark)"
+    )
     args = parser.parse_args()
 
     # Ensure RAG directory exists
     Path(RAG_DB).parent.mkdir(parents=True, exist_ok=True)
 
     memos = sqlite3.connect(f"file:{MEMOS_DB}?mode=ro", uri=True)  # read-only
-    rag   = sqlite3.connect(RAG_DB)
+    rag = sqlite3.connect(RAG_DB)
 
     init_rag_db(rag, EMBED_DIM)
 
@@ -134,7 +164,9 @@ def do_build():
         index_memos(memos_list, rag, BATCH_SIZE, OLLAMA_URL, EMBED_MODEL)
         new_watermark = max(m["updated_ts"] for m in memos_list)
         save_watermark(rag, new_watermark, WATERMARK_KEY)
-        log.info(f"Watermark updated to {datetime.fromtimestamp(new_watermark).isoformat()}")
+        log.info(
+            f"Watermark updated to {datetime.fromtimestamp(new_watermark).isoformat()}"
+        )
     else:
         log.info("Nothing to index.")
 

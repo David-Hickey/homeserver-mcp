@@ -7,8 +7,8 @@ from memos_rag import search as memos_search
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-HOST   = "0.0.0.0"
-PORT   = int(os.getenv("MCP_PORT", "8000"))
+HOST = "0.0.0.0"
+PORT = int(os.getenv("MCP_PORT", "8000"))
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -20,6 +20,7 @@ mcp = FastMCP(
 )
 
 # ── Tool ──────────────────────────────────────────────────────────────────────
+
 
 @mcp.tool()
 def journal_rag(query: str, top_k: int = 5) -> str:
@@ -44,9 +45,10 @@ def journal_rag(query: str, top_k: int = 5) -> str:
     # Format results for the LLM — include date and content, skip low scores
     entries = []
     for r in results:
-        if r["score"] < 0.3:   # tune this threshold to taste
+        if r["score"] < 0.3:  # tune this threshold to taste
             continue
         from datetime import datetime
+
         date = datetime.fromtimestamp(r["created_ts"]).strftime("%Y-%m-%d")
         entries.append(f"[{date}] (score: {r['score']:.2f})\n{r['content']}")
 

@@ -11,6 +11,7 @@ from .utils import decode_vector, embed_texts, cosine_similarity
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
+
 def rewrite_query(query: str, ollama_url: str, rewrite_model: str) -> list[str]:
     resp = requests.post(
         f"{ollama_url}/api/chat",
@@ -20,13 +21,13 @@ def rewrite_query(query: str, ollama_url: str, rewrite_model: str) -> list[str]:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an expert at search query expansion. Expand the given query with synonyms and alternate phrasings. Output exactly 4 lines, one per line, no numbering, no bullets, nothing else."
+                    "content": "You are an expert at search query expansion. Expand the given query with synonyms and alternate phrasings. Output exactly 4 lines, one per line, no numbering, no bullets, nothing else.",
                 },
                 {
                     "role": "user",
-                    "content": f"Expand this query for better search: {query}"
-                }
-            ]
+                    "content": f"Expand this query for better search: {query}",
+                },
+            ],
         },
         timeout=60,
     )
@@ -36,7 +37,7 @@ def rewrite_query(query: str, ollama_url: str, rewrite_model: str) -> list[str]:
     rewrites = [line.strip() for line in raw.splitlines() if line.strip()]
 
     if not rewrites:
-        log.warning(f"Query rewriting produced no output, falling back to original")
+        log.warning("Query rewriting produced no output, falling back to original")
         return [query]
 
     log.debug(f"Query rewrites: {rewrites}")
@@ -59,9 +60,11 @@ def search(query: str, rag: sqlite3.Connection = None, top_k: int = 5) -> list[d
     else:
         close_after = False
 
-    try: 
+    try:
         queries = rewrite_query(query, OLLAMA_URL, REWRITE_MODEL)
-        print(f"Searching with {len(queries)} queries: {queries}")  # helpful for debugging
+        print(
+            f"Searching with {len(queries)} queries: {queries}"
+        )  # helpful for debugging
 
         embeddings = embed_texts(queries, OLLAMA_URL, EMBED_MODEL)
         query_vec = average_vectors(embeddings)
@@ -72,11 +75,11 @@ def search(query: str, rag: sqlite3.Connection = None, top_k: int = 5) -> list[d
 
         scored = [
             {
-                "memo_id":    r[0],
-                "uid":        r[1],
+                "memo_id": r[0],
+                "uid": r[1],
                 "created_ts": r[2],
-                "content":    r[3],
-                "score":      cosine_similarity(query_vec, decode_vector(r[4])),
+                "content": r[3],
+                "score": cosine_similarity(query_vec, decode_vector(r[4])),
             }
             for r in rows
         ]
