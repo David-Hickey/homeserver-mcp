@@ -1,0 +1,26 @@
+services:
+
+  ollama:
+    build:
+      context: ./ollama
+      dockerfile: Dockerfile
+    container_name: ollama
+    volumes:
+      - ./srv/ssd/mcp/ollama:/root/.ollama
+    restart: unless-stopped
+
+  homeserver_mcp:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: homeserver-mcp
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./srv/ssd/memos/data/memos_prod.db:/external-data/memos/memos.db:ro
+      - ./srv/ssd/mcp:/mcp
+    environment:
+      - OLLAMA_URL=http://ollama:11434
+    depends_on:
+      - ollama
+    restart: unless-stopped

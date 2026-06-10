@@ -1,26 +1,14 @@
 #!/usr/bin/env python3
-"""
-mcp.py — MCP server exposing a journal_rag tool.
 
-Install:
-    pip install fastmcp
-
-Run:
-    python mcp.py
-
-The server listens on HTTP/SSE at http://0.0.0.0:8000/sse
-"""
-
-import sqlite3
+import os
 import logging
 from fastmcp import FastMCP
-import memos_rag  # your existing module with search()
+from memos_rag import search as memos_search
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-RAG_DB = "/srv/ssd/memos/rag/rag.db"
 HOST   = "0.0.0.0"
-PORT   = 8000
+PORT   = int(os.getenv("MCP_PORT", "8000"))
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -48,11 +36,7 @@ def journal_rag(query: str, top_k: int = 5) -> str:
     """
     top_k = min(top_k, 20)  # sanity cap
 
-    conn = sqlite3.connect(RAG_DB)
-    try:
-        results = memos_rag.search(query, conn, top_k=top_k)
-    finally:
-        conn.close()
+    results = memos_search.search(query, top_k=top_k)
 
     if not results:
         return "No journal entries found matching that query."

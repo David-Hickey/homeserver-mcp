@@ -1,2 +1,2 @@
-fastmcp==3.4.2
+fastmcp[server]==3.4.2
 requests==2.34.2
