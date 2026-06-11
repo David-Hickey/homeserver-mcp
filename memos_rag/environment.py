@@ -10,5 +10,4 @@ class Environment:
         self.embed_model = os.getenv("MEMOS_EMBED_MODEL", "nomic-embed-text")
         self.embed_dim = int(os.getenv("MEMOS_EMBED_DIM", "768"))
         self.batch_size = int(os.getenv("MEMOS_BATCH_SIZE", "32"))
-        self.watermark_key = os.getenv("MEMOS_WATERMARK_KEY", "last_indexed_ts")
         self.rewrite_model = os.getenv("RAG_REWRITE_MODEL", "qwen2.5:3b")

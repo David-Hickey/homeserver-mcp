@@ -6,6 +6,7 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential
+import hashlib
 from . import environment
 from .utils import encode_vector, embed_texts
 
@@ -26,36 +27,11 @@ def init_rag_db(rag: sqlite3.Connection, embed_dim: int):
             uid         TEXT NOT NULL,
             created_ts  BIGINT NOT NULL,
             updated_ts  BIGINT NOT NULL,
+            content_hash TEXT NOT NULL,
             content     TEXT NOT NULL,
             embedding   BLOB NOT NULL          -- {embed_dim} × float32 (IEEE-754)
         );
-
-        CREATE INDEX IF NOT EXISTS idx_me_updated ON memo_embeddings(updated_ts);
-
-        -- Watermark table so incremental runs know where to resume
-        CREATE TABLE IF NOT EXISTS meta (
-            key   TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-        );
     """)
-    rag.commit()
-
-
-# ── Watermark ─────────────────────────────────────────────────────────────────
-
-
-def get_watermark(rag: sqlite3.Connection, watermark_key: str) -> int:
-    row = rag.execute(
-        "SELECT value FROM meta WHERE key = ?", (watermark_key,)
-    ).fetchone()
-    return int(row[0]) if row else 0
-
-
-def save_watermark(rag: sqlite3.Connection, ts: int, watermark_key: str):
-    rag.execute(
-        "INSERT OR REPLACE INTO meta(key, value) VALUES (?, ?)",
-        (watermark_key, str(ts)),
-    )
     rag.commit()
 
 
@@ -87,6 +63,82 @@ def fetch_memos_since(memos: sqlite3.Connection, since_ts: int) -> list[dict]:
     ]
 
 
+def content_hash(text: str) -> str:
+    return hashlib.md5(text.encode()).hexdigest()
+
+
+def fetch_memos_needing_index(
+    memos: sqlite3.Connection, rag: sqlite3.Connection
+) -> list[dict]:
+    # Get all current memos
+    all_memos = memos.execute("""
+        SELECT id, uid, created_ts, updated_ts, content
+        FROM   memo
+        WHERE  row_status = 'NORMAL'
+    """).fetchall()
+
+    # Get existing hashes from RAG DB in one query
+    existing = {
+        row[0]: row[1]
+        for row in rag.execute("SELECT memo_id, content_hash FROM memo_embeddings")
+    }
+
+    to_index = []
+    for id, uid, created_ts, updated_ts, content in all_memos:
+        hash = content_hash(content)
+        if id not in existing:
+            to_index.append(
+                {
+                    "id": id,
+                    "uid": uid,
+                    "created_ts": created_ts,
+                    "updated_ts": updated_ts,
+                    "content": content,
+                    "content_hash": hash,
+                    "reason": "new",
+                }
+            )
+        elif existing[id] != hash:
+            to_index.append(
+                {
+                    "id": id,
+                    "uid": uid,
+                    "created_ts": created_ts,
+                    "updated_ts": updated_ts,
+                    "content": content,
+                    "content_hash": hash,
+                    "reason": "changed",
+                }
+            )
+
+    return to_index
+
+
+def fetch_all_memos(memos: sqlite3.Connection) -> list[dict]:
+    rows = memos.execute(
+        """
+        SELECT id, uid, created_ts, updated_ts, content
+        FROM   memo
+        WHERE  row_status = 'NORMAL'
+          AND  visibility != 'ARCHIVED'
+        ORDER  BY updated_ts ASC
+    """,
+    ).fetchall()
+
+    return [
+        {
+            "id": r[0],
+            "uid": r[1],
+            "created_ts": r[2],
+            "updated_ts": r[3],
+            "content": r[4],
+            "content_hash": content_hash(r[4]),
+            "reason": "full_reindex",
+        }
+        for r in rows
+    ]
+
+
 def index_memos(
     memos_list: list[dict],
     rag: sqlite3.Connection,
@@ -111,8 +163,8 @@ def index_memos(
         rag.executemany(
             """
             INSERT OR REPLACE INTO memo_embeddings
-                (memo_id, uid, created_ts, updated_ts, content, embedding)
-            VALUES (?, ?, ?, ?, ?, ?)
+                (memo_id, uid, created_ts, updated_ts, content, content_hash, embedding)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
             [
                 (
@@ -121,6 +173,7 @@ def index_memos(
                     m["created_ts"],
                     m["updated_ts"],
                     m["content"],
+                    m["content_hash"],
                     encode_vector(emb),
                 )
                 for m, emb in zip(batch, embeddings)
@@ -136,7 +189,6 @@ def do_build():
     RAG_DB = environment.Environment().rag_db
     OLLAMA_URL = environment.Environment().ollama_url
     BATCH_SIZE = environment.Environment().batch_size
-    WATERMARK_KEY = environment.Environment().watermark_key
     EMBED_DIM = environment.Environment().embed_dim
     EMBED_MODEL = environment.Environment().embed_model
 
@@ -154,20 +206,15 @@ def do_build():
 
     init_rag_db(rag, EMBED_DIM)
 
-    since = 0 if args.full else get_watermark(rag, WATERMARK_KEY)
-    since_human = datetime.fromtimestamp(since).isoformat() if since else "beginning"
-    log.info(f"Fetching memos updated since {since_human}")
-
-    memos_list = fetch_memos_since(memos, since)
+    memos_list = (
+        fetch_memos_needing_index(memos, rag)
+        if not args.full
+        else fetch_all_memos(memos)
+    )
     log.info(f"Found {len(memos_list)} memo(s) to index")
 
     if memos_list:
         index_memos(memos_list, rag, BATCH_SIZE, OLLAMA_URL, EMBED_MODEL)
-        new_watermark = max(m["updated_ts"] for m in memos_list)
-        save_watermark(rag, new_watermark, WATERMARK_KEY)
-        log.info(
-            f"Watermark updated to {datetime.fromtimestamp(new_watermark).isoformat()}"
-        )
     else:
         log.info("Nothing to index.")
 
