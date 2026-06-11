@@ -8,6 +8,8 @@ services:
     volumes:
       - ./srv/ssd/mcp/ollama:/root/.ollama
     restart: unless-stopped
+    networks:
+      - mcp-internal
 
   homeserver_mcp:
     build:
@@ -24,3 +26,12 @@ services:
     depends_on:
       - ollama
     restart: unless-stopped
+    networks:
+      - caddy-proxy
+      - mcp-internal
+
+networks:
+  caddy-proxy:
+    external: true
+  mcp-internal:
+    internal: true
