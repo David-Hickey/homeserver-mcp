@@ -3,8 +3,9 @@
 import sqlite3
 import argparse
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
+from tenacity import retry, stop_after_attempt, wait_exponential
 from . import environment
 from .utils import encode_vector, embed_texts
 
@@ -172,3 +173,22 @@ def do_build():
 
     memos.close()
     rag.close()
+
+
+@retry(stop=stop_after_attempt(10), wait=wait_exponential(min=10, max=300))
+def do_build_with_retry():
+    log.info("Running rebuild...")
+    do_build()
+
+
+def start_build_scheduler():
+    from apscheduler.schedulers.background import BackgroundScheduler
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(
+        do_build,
+        "interval",
+        hours=1,
+        next_run_time=datetime.now() + timedelta(minutes=2),
+    )
+    scheduler.start()

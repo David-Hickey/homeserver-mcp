@@ -1,2 +1,5 @@
 fastmcp[server]==3.4.2
 requests==2.34.2
+APScheduler==3.11.2
+tenacity==9.1.4
+

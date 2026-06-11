@@ -3,7 +3,7 @@
 import os
 import logging
 from fastmcp import FastMCP
-from memos_rag import search as memos_search
+from memos_rag import build as memos_build, search as memos_search
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -61,4 +61,5 @@ def journal_rag(query: str, top_k: int = 5) -> str:
 # ── Run ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    mcp.run(transport="sse", host=HOST, port=PORT)
+    memos_build.start_build_scheduler()
+    mcp.run(transport="streamable-http", host=HOST, port=PORT)
