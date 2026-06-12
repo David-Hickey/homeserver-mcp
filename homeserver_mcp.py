@@ -3,6 +3,7 @@
 import os
 import logging
 from fastmcp import FastMCP
+from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
 from memos_rag import build as memos_build, search as memos_search
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -14,10 +15,24 @@ PORT = int(os.getenv("MCP_PORT", "8000"))
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
+
+auth_token = os.environ.get("MCP_AUTH_TOKEN")
+
 mcp = FastMCP(
-    name="memos-journal",
-    instructions="Search the user's personal journal using semantic search.",
+    name="homeserver-mcp",
+    auth=(
+        StaticTokenVerifier(
+            tokens={auth_token: {"client_id": "openwebui", "scopes": ["read"]}}
+        )
+        if auth_token
+        else None
+    ),
 )
+
+if auth_token:
+    logging.info(f"AUTH_TOKEN is set to {auth_token[:5] + ('*' * (len(auth_token) - 5))}, using StaticTokenVerifier")
+else:
+    logging.warning("No AUTH_TOKEN set, running without authentication!")
 
 # ── Tool ──────────────────────────────────────────────────────────────────────
 

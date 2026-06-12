@@ -23,6 +23,7 @@ services:
       - ./srv/ssd/mcp:/mcp
     environment:
       - OLLAMA_URL=http://ollama:11434
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
     depends_on:
       - ollama
     restart: unless-stopped
