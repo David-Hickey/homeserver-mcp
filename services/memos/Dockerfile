@@ -4,6 +4,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY homeserver_mcp.py .
+COPY services/memos/ .
 
-CMD ["python", "homeserver_mcp.py"]
+CMD ["python", "memos_mcp.py"]

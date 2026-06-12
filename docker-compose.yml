@@ -6,10 +6,13 @@ services:
       dockerfile: Dockerfile
     container_name: ollama
     volumes:
-      - ./srv/ssd/mcp/ollama:/root/.ollama
+      - ./srv/ssd/homeserver-mcp/ollama:/root/.ollama
+    env_file:
+      - .env
     restart: unless-stopped
     networks:
       - mcp-internal
+      - mcp-internet
 
   homeserver_mcp:
     build:
@@ -19,11 +22,9 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./srv/ssd/memos/data/memos_prod.db:/external-data/memos/memos.db:ro
-      - ./srv/ssd/mcp:/mcp
-    environment:
-      - OLLAMA_URL=http://ollama:11434
-      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      - ./srv/ssd/homeserver-mcp/root:/mcp
+    env_file:
+      - .env
     depends_on:
       - ollama
     restart: unless-stopped
@@ -31,8 +32,25 @@ services:
       - caddy-proxy
       - mcp-internal
 
+  memos_mcp:
+    build:
+      context: .
+      dockerfile: services/memos/Dockerfile
+    container_name: memos-mcp
+    volumes:
+      - ./srv/ssd/memos/data/memos_prod.db:/external-data/memos/memos.db:ro
+      - ./srv/ssd/homeserver-mcp/memos:/mcp
+    env_file:
+      - .env
+    depends_on:
+      - ollama
+    restart: unless-stopped
+    networks:
+      - mcp-internal
+
 networks:
   caddy-proxy:
     external: true
   mcp-internal:
     internal: true
+  mcp-internet:

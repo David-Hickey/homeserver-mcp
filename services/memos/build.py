@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from tenacity import retry, stop_after_attempt, wait_exponential
 import hashlib
-from . import environment
-from .utils import encode_vector, embed_texts
+import environment
+from utils import encode_vector, embed_texts
 
 # ── Config ────────────────────────────────────────────────────────────────────
 

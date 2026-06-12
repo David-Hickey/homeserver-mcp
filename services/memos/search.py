@@ -3,8 +3,8 @@
 import sqlite3
 import requests
 import logging
-from . import environment
-from .utils import decode_vector, embed_texts, cosine_similarity
+import environment
+from utils import decode_vector, embed_texts, cosine_similarity
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
