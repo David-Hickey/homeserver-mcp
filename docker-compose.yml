@@ -32,6 +32,21 @@ services:
       - caddy-proxy
       - mcp-internal
 
+  paperless-mcp:
+    build:
+      context: services/paperless-mcp
+      dockerfile: Dockerfile
+    container_name: paperless-mcp
+    command: ["node", "build/index.js",  "--baseUrl", "${PAPERLESS_URL}", "--token", "${PAPERLESS_API_TOKEN}", "--http", "--port", "3000", "--no-auth"]
+    expose:
+      - "3000"
+    env_file:
+      - .env
+    restart: unless-stopped
+    networks:
+      - mcp-internal
+      - mcp-internet
+
   memos_mcp:
     build:
       context: .
