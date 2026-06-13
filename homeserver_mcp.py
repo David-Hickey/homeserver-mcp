@@ -5,6 +5,7 @@ import logging
 from fastmcp import FastMCP
 from fastmcp.client import Client
 from fastmcp.server.auth.providers.jwt import StaticTokenVerifier
+from fastmcp.tools import Tool
 from tenacity import (
     retry,
     stop_after_attempt,
@@ -59,10 +60,17 @@ async def try_mount_service(entry: str):
     svc_log = logging.getLogger(f"mount.{name}")
 
     client = Client(url)
+    tools: list[Tool] = []
     async with client:
         await client.ping()
+        tools = await client.list_tools()
     mcp.mount(client, namespace=name.replace("-", "_"), as_proxy=True)
     svc_log.info(f"Mounted successfully from {url}")
+
+    if tools:
+        svc_log.info(f"Available tools: {', '.join([tool.name for tool in tools])}")
+    else:
+        svc_log.warning("No tools available.")
 
 
 async def mount_services():
