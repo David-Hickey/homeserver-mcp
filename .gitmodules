@@ -1,0 +1,3 @@
+[submodule "services/paperless-mcp"]
+	path = services/paperless-mcp
+	url = https://github.com/baruchiro/paperless-mcp.git
